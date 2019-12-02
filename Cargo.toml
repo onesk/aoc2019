@@ -1,0 +1,5 @@
+[package]
+name = "aoc2019"
+version = "0.1.0"
+authors = ["n_lesnikov"]
+edition = "2018"
