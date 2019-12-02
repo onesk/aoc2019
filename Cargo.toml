@@ -1,5 +1,9 @@
 [package]
-name = "aoc2019"
-version = "0.1.0"
 authors = ["n_lesnikov"]
 edition = "2018"
+name = "aoc2019"
+version = "0.1.0"
+
+[dependencies]
+itertools = "0.8.2"
+boolinator = "2.4.0"
