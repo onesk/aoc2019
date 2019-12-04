@@ -7,3 +7,4 @@ version = "0.1.0"
 [dependencies]
 itertools = "0.8.2"
 boolinator = "2.4.0"
+smallvec = "1.0.0"
