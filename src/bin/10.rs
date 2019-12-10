@@ -1,17 +1,18 @@
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
+use std::collections::HashMap;
 
 use num_integer::gcd;
 use boolinator::Boolinator;
 
 const INPUT: &'static str = include_str!("inputs/10.txt");
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug)]
 struct Roid {
     x: isize,
     y: isize
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 struct Dxdy {
     dx: isize,
     dy: isize
@@ -83,12 +84,6 @@ impl Roid {
         let dy = other.y - self.y;
         Dxdy { dx, dy }
     }
-
-    fn occluded_from_by(&self, from: Roid, by: Roid) -> bool {
-        let (v_self, l_self) = from.dxdy_to(*self).minimal();
-        let (v_by,   l_by)   = from.dxdy_to(by).minimal();
-        v_self == v_by && l_by <= l_self
-    }
 }
 
 fn parse(s: &str) -> Vec<Roid> {
@@ -102,22 +97,18 @@ fn parse(s: &str) -> Vec<Roid> {
 }
 
 fn visible_from(from: Roid, locs: &[Roid]) -> Vec<Roid> {
-    let mut visible = Vec::new();
+    let mut visible: HashMap<Dxdy, (isize, Roid)> = HashMap::new();
 
-    for &new_loc in locs {
-        if new_loc == from {
-            continue;
-        }
+    for &new_loc in locs.iter().filter(|&&loc| loc != from) {
+        let (dir, multiple) = from.dxdy_to(new_loc).minimal();
+        let value = (multiple, new_loc);
 
-        let can_be_seen = visible.iter().all(|&old_loc| !new_loc.occluded_from_by(from, old_loc));
-
-        if can_be_seen {
-            visible.retain(|&old_loc| !old_loc.occluded_from_by(from, new_loc));
-            visible.push(new_loc);
-        }
+        visible.entry(dir)
+            .and_modify(|closest| { *closest = min(*closest, value); })
+            .or_insert(value);
     }
 
-    visible
+    visible.values().map(|&(_, loc)| loc).collect()
 }
 
 fn rel_dir_comparator(colinear_last: bool, rel: Dxdy, d1: Dxdy, d2: Dxdy) -> Ordering {
