@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use num_integer::gcd;
 use boolinator::Boolinator;
+use itertools::Itertools;
 
 const INPUT: &'static str = include_str!("inputs/10.txt");
 
@@ -38,10 +39,6 @@ impl Dxdy {
 
     fn cross(&self, other: Dxdy) -> isize {
         self.dx * other.dy - self.dy * other.dx
-    }
-
-    fn colinear(&self, other: Dxdy) -> bool {
-        self.dot(other) >= 0 && self.cross(other) == 0
     }
 
     fn quadrant_of(&self, other: Dxdy) -> Quadrant {
@@ -86,22 +83,29 @@ impl Roid {
     }
 }
 
-fn parse(s: &str) -> Vec<Roid> {
+fn parse(s: &str) -> impl Iterator<Item=Roid> + '_ {
     s.lines()
         .enumerate()
         .flat_map(|(y, line)| {
             line.chars().enumerate().filter_map(move |(x, c)| {
                 (c == '#').as_some(Roid { x: x as isize, y: y as isize })
             })
-        }).collect()
+        })
+}
+
+fn to_minimal_dirs(from: Roid, locs: impl Iterator<Item=Roid>) -> impl Iterator<Item=(Dxdy, isize, Roid)> {
+    locs.filter(move |&loc| loc != from)
+        .map(move |loc| {
+            let (dir, multiple) = from.dxdy_to(loc).minimal();
+            (dir, multiple, loc)
+        })
 }
 
 fn visible_from(from: Roid, locs: &[Roid]) -> Vec<Roid> {
     let mut visible: HashMap<Dxdy, (isize, Roid)> = HashMap::new();
 
-    for &new_loc in locs.iter().filter(|&&loc| loc != from) {
-        let (dir, multiple) = from.dxdy_to(new_loc).minimal();
-        let value = (multiple, new_loc);
+    for (dir, multiple, loc) in to_minimal_dirs(from, locs.iter().cloned()) {
+        let value = (multiple, loc);
 
         visible.entry(dir)
             .and_modify(|closest| { *closest = min(*closest, value); })
@@ -111,43 +115,42 @@ fn visible_from(from: Roid, locs: &[Roid]) -> Vec<Roid> {
     visible.values().map(|&(_, loc)| loc).collect()
 }
 
-fn rel_dir_comparator(colinear_last: bool, rel: Dxdy, d1: Dxdy, d2: Dxdy) -> Ordering {
-    let colinear_cmp = rel.colinear(d1).cmp(&rel.colinear(d2));
-    let colinear_cmp = if colinear_last { colinear_cmp } else { colinear_cmp.reverse() };
-
-    colinear_cmp
-        .then_with(|| rel.quadrant_of(d1).cmp(&rel.quadrant_of(d2)))
+fn rel_dir_comparator(rel: Dxdy, d1: Dxdy, d2: Dxdy) -> Ordering {
+    rel.quadrant_of(d1).cmp(&rel.quadrant_of(d2))
         .then_with(|| d1.quadrant_of(d2).cmp(&d2.quadrant_of(d1)))
 }
 
 fn solve_part_one(s: &str) -> (usize, Roid) {
-    let roids = parse(s);
+    let roids: Vec<Roid> = parse(s).collect();
     roids.iter().map(|&base| (visible_from(base, &roids).len(), base)).max_by_key(|t| t.0).expect("Examples are correct!")
 }
 
 fn solve_part_two(s: &str, from: Roid) -> Vec<Roid> {
+    let mut roids: Vec<(Dxdy, isize, Roid)> = to_minimal_dirs(from, parse(s)).collect();
+
+    let up = Dxdy { dx: 0, dy: -1 };
+    roids.sort_unstable_by(|&(d1, l1, _), &(d2, l2, _)| {
+        rel_dir_comparator(up, d1, d2).then_with(|| l1.cmp(&l2))
+    });
+
+    type Rays = Vec<(Dxdy, Vec<Roid>)>;
+
+    let mut rays: Rays = roids.into_iter().rev().group_by(|&(d, _, _)| d)
+        .into_iter()
+        .map(|(d, group)| (d, group.map(|(_, _, r)| r).collect()))
+        .collect();
+
+    rays.reverse();
+
+    let roids_left = |rays: &Rays| rays.iter().any(|&(_, ref ray)| !ray.is_empty());
+
     let mut order = Vec::new();
-    let mut roids = parse(s);
-
-    roids.retain(|&r| r != from);
-
-    let mut laser_dir = Dxdy { dx: 0, dy: -1 };
-    let mut colinear_last = false;
-
-    while !roids.is_empty() {
-        let visible = visible_from(from, &roids);
-
-        let next_kill = visible.into_iter()
-            .min_by(|&r1, &r2| {
-                rel_dir_comparator(colinear_last, laser_dir, from.dxdy_to(r1), from.dxdy_to(r2))
-            })
-            .expect("Nonempty visible set.");
-
-        roids.retain(|&r| r != next_kill);
-        order.push(next_kill);
-
-        laser_dir = from.dxdy_to(next_kill);
-        colinear_last = true;
+    while roids_left(&rays) {
+        for &mut (_, ref mut rays) in rays.iter_mut() {
+            if let Some(r) = rays.pop() {
+                order.push(r);
+            }
+        }
     }
 
     order
