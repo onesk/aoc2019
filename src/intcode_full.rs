@@ -18,6 +18,10 @@ pub type InputWord = isize;
 
 pub struct Memory(HashMap<Pos, Word>);
 
+pub fn word_narrow(w: Word) -> Option<InputWord> {
+    w.to_isize()
+}
+
 impl Memory {
     fn get(&self, index: &Pos) -> Word {
         self.0.get(index).cloned().unwrap_or_else(|| 0isize.into())
@@ -179,8 +183,8 @@ impl State {
         }
     }
 
-    pub fn supply_input(&mut self, input: Word) {
-        self.inputs.insert(0, input)
+    pub fn supply_input(&mut self, input: InputWord) {
+        self.inputs.insert(0, input.into())
     }
 
     pub fn step(&mut self) -> Result<(), YieldReason> {
