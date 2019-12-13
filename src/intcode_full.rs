@@ -183,6 +183,11 @@ impl State {
         }
     }
 
+    pub fn write_memory(&mut self, pos: InputWord, value: InputWord) {
+        let mem_cell = self.memory.get_mut(pos.to_biguint().expect("Correct address!"));
+        *mem_cell = value.into();
+    }
+
     pub fn supply_input(&mut self, input: InputWord) {
         self.inputs.insert(0, input.into())
     }
